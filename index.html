@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>꿈 시뮬레이터 · Dream Simulator</title>
+<link rel="icon" href="data:," />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@200;300;500&family=Nanum+Gothic+Coding&display=swap" rel="stylesheet" />
+<style>
+  :root{ --ink:#06060a; --accent:#8f9fe8; --text:#e8e8f0; --dim:#6b6f88; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:var(--ink);color:var(--text);
+    font-family:'Nanum Gothic Coding',monospace;overflow:hidden;-webkit-font-smoothing:antialiased}
+  #stage{position:fixed;inset:0;overflow:hidden;background:var(--ink)}
+
+  /* 생성 이미지 (모션) */
+  .imgwrap{position:absolute;inset:0;opacity:0;transition:opacity 2.4s ease}
+  .imgwrap.show{opacity:1}
+  .imgwrap img{position:absolute;inset:-6%;width:112%;height:112%;object-fit:cover}
+  .imgwrap img.base{animation:drift 46s ease-in-out infinite alternate}
+  .imgwrap img.glow{filter:blur(26px) saturate(1.2);opacity:.5;
+    animation:drift2 52s ease-in-out infinite alternate;mix-blend-mode:screen}
+  @keyframes drift{0%{transform:scale(1.04) translate(0,0)}100%{transform:scale(1.16) translate(-2.5%,-2%)}}
+  @keyframes drift2{0%{transform:scale(1.1) translate(1%,1%)}100%{transform:scale(1.22) translate(-2%,-1%)}}
+
+  .fog{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 46%, transparent 30%, rgba(6,6,10,.5) 72%, rgba(6,6,10,.92) 100%);
+    mix-blend-mode:multiply}
+  .fog2{position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background:linear-gradient(180deg, rgba(20,22,40,.5), transparent 30%, transparent 60%, rgba(6,6,10,.7));
+    animation:breatheFog 9s ease-in-out infinite}
+  @keyframes breatheFog{0%,100%{opacity:.35}50%{opacity:.6}}
+  #grain{position:absolute;inset:0;pointer-events:none;opacity:.06;mix-blend-mode:overlay}
+
+  /* 시작 화면 */
+  #intro{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:30px;padding:24px;z-index:40;text-align:center;
+    transition:opacity 1.4s ease,transform 1.4s ease}
+  #intro.gone{opacity:0;transform:scale(1.08);pointer-events:none}
+  .brand{font-family:'Noto Serif KR',serif;font-weight:200;letter-spacing:.18em;line-height:1.5}
+  .brand .ko{font-size:clamp(38px,9vw,74px);display:block;filter:blur(.4px);
+    text-shadow:0 0 32px rgba(143,159,232,.35)}
+  .brand .en{display:block;margin-top:14px;font-family:'Nanum Gothic Coding',monospace;
+    font-size:clamp(9px,2vw,12px);letter-spacing:.5em;color:var(--dim);text-indent:.5em}
+  .lead{font-size:12px;color:var(--dim);letter-spacing:.12em;max-width:34ch;line-height:1.9}
+  .field{width:min(440px,86vw)}
+  #kw{width:100%;background:rgba(10,10,18,.55);border:none;
+    border-bottom:1px solid rgba(143,159,232,.35);color:var(--text);
+    font-family:'Noto Serif KR',serif;font-weight:300;font-size:22px;text-align:center;
+    padding:16px 12px 14px;letter-spacing:.06em;outline:none;transition:border-color .4s,box-shadow .4s}
+  #kw::placeholder{color:rgba(107,111,136,.6);font-family:'Nanum Gothic Coding',monospace;
+    font-size:14px;letter-spacing:.08em}
+  #kw:focus{border-color:var(--accent);box-shadow:0 8px 40px -18px var(--accent)}
+  .enter{background:none;border:1px solid rgba(143,159,232,.4);color:var(--text);
+    font-family:'Nanum Gothic Coding',monospace;font-size:13px;letter-spacing:.3em;text-indent:.3em;
+    padding:13px 34px;cursor:pointer;border-radius:2px;transition:all .35s}
+  .enter:hover,.enter:focus-visible{background:rgba(143,159,232,.12);border-color:var(--accent);
+    box-shadow:0 0 30px -6px var(--accent);outline:none}
+  .enter:disabled{opacity:.4;cursor:default}
+  .seeds{display:flex;flex-wrap:wrap;gap:8px 10px;justify-content:center;max-width:440px}
+  .seed{background:none;border:1px solid rgba(107,111,136,.3);color:var(--dim);
+    font-family:'Nanum Gothic Coding',monospace;font-size:11px;padding:6px 12px;border-radius:20px;
+    cursor:pointer;transition:all .3s;letter-spacing:.05em}
+  .seed:hover{color:var(--text);border-color:var(--accent)}
+
+  /* 내레이션 */
+  #dreamLayer{position:absolute;inset:0;z-index:30;pointer-events:none;display:flex;
+    flex-direction:column;align-items:center;justify-content:flex-end;padding:0 8vw 13vh}
+  #narration{font-family:'Noto Serif KR',serif;font-weight:300;text-align:center;max-width:24ch;
+    min-height:3.2em;font-size:clamp(19px,3.8vw,30px);line-height:1.7;letter-spacing:.04em;
+    text-shadow:0 2px 24px rgba(0,0,0,.95),0 0 50px rgba(0,0,0,.9)}
+  #narration .line{display:block;opacity:0;filter:blur(6px);transform:translateY(12px);
+    transition:opacity 2.2s ease,filter 2.4s ease,transform 2.4s ease}
+  #narration .line.show{opacity:1;filter:blur(0);transform:none}
+  #dreamTitle{position:absolute;top:7vh;left:0;right:0;text-align:center;
+    font-family:'Noto Serif KR',serif;font-weight:200;font-size:clamp(14px,3vw,19px);
+    letter-spacing:.3em;text-indent:.3em;color:var(--accent);opacity:0;transition:opacity 2s ease;
+    text-shadow:0 0 24px rgba(0,0,0,.95)}
+  #dreamTitle.show{opacity:.92}
+
+  /* HUD */
+  #hud{position:absolute;z-index:45;bottom:20px;left:0;right:0;display:flex;align-items:center;
+    justify-content:center;gap:16px;opacity:0;transition:opacity 1.2s ease;flex-wrap:wrap;padding:0 16px}
+  #hud.show{opacity:1}
+  #hud .meta{font-size:10px;color:var(--dim);letter-spacing:.14em}
+  #hud .meta b{color:var(--accent);font-weight:normal}
+  .hbtn{background:rgba(6,6,10,.5);border:1px solid rgba(107,111,136,.35);color:var(--text);
+    font-family:'Nanum Gothic Coding',monospace;font-size:11px;letter-spacing:.14em;padding:9px 16px;
+    border-radius:2px;cursor:pointer;transition:all .3s}
+  .hbtn:hover,.hbtn:focus-visible{border-color:var(--accent);background:rgba(143,159,232,.12);outline:none}
+
+  /* 상태 */
+  #status{position:absolute;z-index:46;top:50%;left:0;right:0;transform:translateY(-50%);
+    text-align:center;padding:0 24px;opacity:0;transition:opacity .8s;pointer-events:none}
+  #status.show{opacity:1}
+  #status .s{font-size:12px;letter-spacing:.35em;text-indent:.35em;color:var(--accent)}
+  #status.busy .s{animation:breathe 2.4s ease-in-out infinite}
+  #status .hint{display:block;margin-top:14px;font-size:11px;color:var(--dim);letter-spacing:.06em;line-height:1.8}
+  @keyframes breathe{0%,100%{opacity:.35}50%{opacity:.95}}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="imgwrap" id="imgwrap">
+    <img class="glow" id="imgGlow" alt="" crossorigin="anonymous" />
+    <img class="base" id="imgBase" alt="" crossorigin="anonymous" />
+  </div>
+  <div class="fog"></div>
+  <div class="fog2"></div>
+  <canvas id="grain"></canvas>
+
+  <div id="dreamTitle"></div>
+  <div id="dreamLayer"><div id="narration"></div></div>
+
+  <div id="status"><span class="s"></span><span class="hint"></span></div>
+
+  <section id="intro">
+    <h1 class="brand">
+      <span class="ko">꿈 시뮬레이터</span>
+      <span class="en">D R E A M &nbsp; S I M U L A T O R</span>
+    </h1>
+    <p class="lead">키워드 하나를 남기면<br>그 단어로 만들어진 꿈의 이미지 속으로 걸어 들어갑니다.</p>
+    <div class="field">
+      <input id="kw" type="text" maxlength="30" placeholder="예: 바다, 오래된 학교, 눈 오는 편의점…" autocomplete="off" />
+    </div>
+    <button class="enter" id="go">꿈 꾸기</button>
+    <div class="seeds" id="seeds"></div>
+  </section>
+
+  <div id="hud">
+    <span class="meta">꿈 <b id="dreamNo">#0000</b></span>
+    <span class="meta">무드 <b id="moodLabel">—</b></span>
+    <button class="hbtn" id="reDream">다시 꾸기</button>
+    <button class="hbtn" id="wake">깨어나기</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ── Pollinations (무료·무키) ──
+  const IMG_BASE = "https://gen.pollinations.ai/image/";
+  const TXT_BASE = "https://gen.pollinations.ai/text/";
+
+  const SEEDS = ["바다","오래된 학교","끝없는 계단","눈 오는 편의점","할머니 집","텅 빈 수영장","달이 두 개인 밤","이사한 방"];
+  const MOODS = ["포근한","불안한","기괴한","몽롱한","차가운"];
+
+  const $ = id => document.getElementById(id);
+  const intro=$("intro"), kwInput=$("kw"), goBtn=$("go"), seedsWrap=$("seeds");
+  const imgwrap=$("imgwrap"), imgBase=$("imgBase"), imgGlow=$("imgGlow");
+  const narration=$("narration"), dreamTitle=$("dreamTitle");
+  const statusEl=$("status"), statusS=statusEl.querySelector(".s"), statusHint=statusEl.querySelector(".hint");
+  const hud=$("hud"), dreamNoEl=$("dreamNo"), moodLabelEl=$("moodLabel");
+  const reDreamBtn=$("reDream"), wakeBtn=$("wake");
+
+  SEEDS.forEach(s=>{const b=document.createElement("button");b.className="seed";b.textContent=s;
+    b.onclick=()=>{kwInput.value=s;startDream(s)};seedsWrap.appendChild(b)});
+
+  // ── 필름 그레인 ──
+  const gc=$("grain"), gx=gc.getContext("2d");
+  const tile=document.createElement("canvas");tile.width=tile.height=128;
+  const tx=tile.getContext("2d");
+  function bake(){const im=tx.createImageData(128,128);
+    for(let i=0;i<im.data.length;i+=4){const v=Math.random()*255;im.data[i]=im.data[i+1]=im.data[i+2]=v;im.data[i+3]=255}
+    tx.putImageData(im,0,0)}
+  function fitGrain(){gc.width=innerWidth;gc.height=innerHeight}
+  fitGrain();addEventListener("resize",fitGrain);
+  (function grainLoop(){
+    if(Math.random()<.3)bake();
+    const off=(Math.random()*128)|0, s=2.4;
+    gx.clearRect(0,0,gc.width,gc.height);
+    for(let y=-off;y<gc.height;y+=128*s)for(let x=-off;x<gc.width;x+=128*s)gx.drawImage(tile,x,y,128*s,128*s);
+    setTimeout(grainLoop,55);
+  })();
+
+  // ── 내레이션 ──
+  let narrTimer=null;
+  function playNarration(lines){
+    if(narrTimer)clearTimeout(narrTimer);
+    let i=0;
+    (function step(){
+      if(i>=lines.length){narrTimer=setTimeout(()=>{narration.innerHTML="";i=0;setTimeout(step,1600)},5400);return}
+      const sp=document.createElement("span");sp.className="line";sp.textContent=lines[i];
+      narration.innerHTML="";narration.appendChild(sp);
+      requestAnimationFrame(()=>requestAnimationFrame(()=>sp.classList.add("show")));
+      i++;narrTimer=setTimeout(step,4600);
+    })();
+  }
+
+  function showStatus(msg,busy,hint){
+    statusS.textContent=msg;statusHint.textContent=hint||"";
+    statusEl.classList.toggle("busy",!!busy);statusEl.classList.add("show");
+  }
+  const hideStatus=()=>statusEl.classList.remove("show");
+
+  // ── 영어 이미지 프롬프트 ──
+  function buildImagePrompt(keyword){
+    return `a liminal dreamlike scene of ${keyword}, empty and uncanny, nobody around, `
+      + `hazy soft fog, muted desaturated colors, faint film grain, analog photo aesthetic, `
+      + `surreal impossible architecture, eerie calm, cinematic, slightly out of focus`;
+  }
+
+  // ── 꿈 텍스트 (Pollinations 텍스트, 실패 시 로컬 폴백) ──
+  async function getDreamText(keyword){
+    const prompt =
+`키워드 "${keyword}"로 초현실적이고 리미널 스페이스(백룸) 느낌의 꿈을 만들어줘.
+아래 JSON만 출력해. 설명·마크다운·코드블록 금지.
+{"title":"짧고 시적인 한국어 제목","mood":"포근한|불안한|기괴한|몽롱한|차가운 중 하나","narration":["짧은 한국어 문장 6개, 2인칭 '너' 또는 무주어, 현재형, 점점 이상해지는 꿈"]}`;
+    const url = TXT_BASE + encodeURIComponent(prompt) + "?model=gemini&private=true";
+    const ctrl = new AbortController();
+    const to = setTimeout(()=>ctrl.abort(), 12000);
+    try{
+      const res = await fetch(url, { signal: ctrl.signal });
+      const text = await res.text();
+      const s=text.indexOf("{"), e=text.lastIndexOf("}");
+      const obj = JSON.parse(text.slice(s, e+1));
+      if(!obj.narration || !obj.narration.length) throw new Error("no narration");
+      if(!MOODS.includes(obj.mood)) obj.mood = MOODS[(Math.random()*MOODS.length)|0];
+      return obj;
+    } finally { clearTimeout(to); }
+  }
+  function localDream(keyword){
+    return {
+      title:`${keyword}의 방`,
+      mood: MOODS[(Math.random()*MOODS.length)|0],
+      narration:[
+        `너는 ${keyword} 앞에 서 있다. 문은 아까부터 열려 있었다.`,
+        `안쪽은 네가 기억하던 것보다 훨씬 넓다.`,
+        `길은 계속 이어지고, 끝은 다시 처음이 된다.`,
+        `누군가 네 이름을 불렀는데, 돌아보니 아무도 없다.`,
+        `불빛이 아주 천천히 깜빡인다.`,
+        `조금만 더 걸으면 나갈 수 있을 것 같다.`
+      ]
+    };
+  }
+
+  // ── 꿈 시작 ──
+  let curKeyword="", curSeed=0;
+  async function startDream(keyword, reroll){
+    keyword=(keyword||kwInput.value||"").trim();
+    if(!keyword){kwInput.focus();return}
+    curKeyword=keyword;
+    curSeed = reroll ? (Math.random()*1e6|0) : (Math.random()*1e6|0);
+
+    goBtn.disabled=true;
+    intro.classList.add("gone");
+    dreamTitle.classList.remove("show");hud.classList.remove("show");
+    imgwrap.classList.remove("show");
+    if(narrTimer)clearTimeout(narrTimer);narration.innerHTML="";
+    showStatus("잠드는 중…",true,"꿈을 그리고 있어요 · 약 3~15초");
+
+    // 이미지(핵심) + 텍스트(부가)를 병렬로
+    const imgUrl = IMG_BASE + encodeURIComponent(buildImagePrompt(keyword))
+      + `?width=1024&height=768&seed=${curSeed}&model=flux&nologo=true`;
+    const textPromise = getDreamText(keyword).catch(()=>localDream(keyword));
+
+    try{
+      await new Promise((ok,bad)=>{
+        imgBase.onload=ok; imgBase.onerror=()=>bad(new Error("이미지 로드 실패"));
+        imgBase.src=imgUrl; imgGlow.src=imgUrl;
+      });
+    }catch(err){
+      showStatus("꿈이 흩어졌어요", false,
+        "이미지를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.\n(Pollinations 서버가 잠깐 붐빌 때가 있어요)");
+      hud.classList.add("show"); goBtn.disabled=false; return;
+    }
+
+    hideStatus();
+    imgwrap.classList.add("show");
+    dreamNoEl.textContent = "#" + String(curSeed).padStart(4,"0").slice(0,4);
+
+    const dream = await textPromise;
+    moodLabelEl.textContent = dream.mood || "몽롱한";
+    setTimeout(()=>{
+      dreamTitle.textContent = dream.title || keyword; dreamTitle.classList.add("show");
+      hud.classList.add("show");
+      playNarration(dream.narration);
+    },1000);
+    goBtn.disabled=false;
+  }
+
+  goBtn.onclick=()=>startDream();
+  kwInput.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();startDream()}});
+  reDreamBtn.onclick=()=>startDream(curKeyword, true);
+  wakeBtn.onclick=()=>{
+    if(narrTimer)clearTimeout(narrTimer);narration.innerHTML="";
+    dreamTitle.classList.remove("show");hud.classList.remove("show");
+    imgwrap.classList.remove("show");hideStatus();
+    intro.classList.remove("gone");kwInput.value="";
+    setTimeout(()=>kwInput.focus(),400);
+  };
+
+  setTimeout(()=>kwInput.focus(),800);
+})();
+</script>
+</body>
+</html>
